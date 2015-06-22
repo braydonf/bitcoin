@@ -1031,13 +1031,34 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
             return error("AcceptToMemoryPool: BUG! PLEASE REPORT THIS! ConnectInputs failed against MANDATORY but not STANDARD flags %s", hash.ToString());
         }
 
-        // Check if all outputs are unspendable
+        // For mempool replacement, determine if all output scripts are unspendable
+        // or can be considered change. An output is considered change if the scriptPubKey
+        // has a matching input previous output scriptPubKey (i.e. script isn't changing).
         bool transactionUnspendable = true;
-        BOOST_FOREACH(const CTxOut txout, tx.vout) 
+        bool transactionOnlyChange = true;
+        std::set<CScript> prevScripts;
+        BOOST_FOREACH(const CTxIn& txin, tx.vin)
         {
-            if (!txout.scriptPubKey.IsUnspendable())
+            // Gather a set of all input previous output scripts
+            const CCoins* coins = view.AccessCoins(txin.prevout.hash);
+            if (coins)
             {
+                for (unsigned int i = 0; i < coins->vout.size(); i++)
+                {
+                    prevScripts.insert(coins->vout[i].scriptPubKey);
+                }
+            }
+        }
+        BOOST_FOREACH(const CTxOut txout, tx.vout)
+        {
+            // Check scripts that are spendable
+            if (!txout.scriptPubKey.IsUnspendable()) {
                 transactionUnspendable = false;
+                // Check that there is a matching input previous output script
+                if(prevScripts.count(txout.scriptPubKey) == 0) {
+                    transactionOnlyChange = false;
+                    break;
+                }
             }
         }
 
@@ -1058,9 +1079,10 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
                 if (pool.mapNextTx.count(txin.prevout))
                 {
                     // Firstly, only consider replacement if all outputs are unspendable
-                    if (!transactionUnspendable) 
+                    // or if the outputs can be considered change.
+                    if (!transactionUnspendable && !transactionOnlyChange)
                     {
-                        return state.DoS(0, error("AcceptToMemoryPool : transaction not unspendable; can't replace with %s",
+                        return state.DoS(0, error("AcceptToMemoryPool : transaction is spendable; can't replace with %s",
                                                   hash.ToString()),
                                          REJECT_DUPLICATE, "bad-txns-inputs-spent");
                     }
