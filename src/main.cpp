@@ -2193,6 +2193,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     std::vector<std::pair<uint256, CDiskTxPos> > vPos;
     vPos.reserve(block.vtx.size());
     blockundo.vtxundo.reserve(block.vtx.size() - 1);
+
     for (unsigned int i = 0; i < block.vtx.size(); i++)
     {
         const CTransaction &tx = block.vtx[i];
@@ -2209,13 +2210,25 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                 return state.DoS(100, error("ConnectBlock(): inputs missing/spent"),
                                  REJECT_INVALID, "bad-txns-inputs-missingorspent");
 
-            // Check that transaction is BIP68 final
-            // BIP68 lock checks (as opposed to nLockTime checks) must
-            // be in ConnectBlock because they require the UTXO set
-            prevheights.resize(tx.vin.size());
-            for (size_t j = 0; j < tx.vin.size(); j++) {
-                prevheights[j] = view.AccessCoins(tx.vin[j].prevout.hash)->nHeight;
-            }
+	    // Check that transaction is BIP68 final
+	    // BIP68 lock checks (as opposed to nLockTime checks) must
+	    // be in ConnectBlock because they require the UTXO set
+	    prevheights.resize(tx.vin.size());
+	    for (size_t j = 0; j < tx.vin.size(); j++) {
+		prevheights[j] = view.AccessCoins(tx.vin[j].prevout.hash)->nHeight;
+
+		if (fAddressIndex) {
+		    const CTxOut &prevout = view.GetOutputFor(tx.vin[j]);
+		    const CTxDestination addressRet;
+		    if (prevout.scriptPubKey.IsPayToPublicKeyHash()) {
+
+		    } else if (prevout.scriptPubKey.IsPayToScriptHash()) {
+
+		    } else {
+			continue;
+		    }
+		}
+	    }
 
             if (!SequenceLocks(tx, nLockTimeFlags, &prevheights, *pindex)) {
                 return state.DoS(100, error("%s: contains a non-BIP68-final transaction", __func__),
@@ -2242,6 +2255,21 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     tx.GetHash().ToString(), FormatStateMessage(state));
             control.Add(vChecks);
         }
+
+	if (fAddressIndex) {
+	    for (unsigned int k = 0; k < tx.vout.size(); k++)
+	    {
+		const CTxOut &out = tx.vout[k];
+
+		if (out.scriptPubKey.IsPayToPublicKeyHash()) {
+
+		} else if (out.scriptPubKey.IsPayToScriptHash()) {
+
+		} else {
+		    continue;
+		}
+	    }
+	}
 
         CTxUndo undoDummy;
         if (i > 0) {
