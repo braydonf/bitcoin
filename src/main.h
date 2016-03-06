@@ -314,6 +314,9 @@ struct CAddressIndexKey {
 
     CAddressIndexKey(std::vector<unsigned char> hashBytes, unsigned int type, uint256 txhash, size_t index) {
     }
+
+    CAddressIndexKey() {
+    }
 };
 
 struct CDiskTxPos : public CDiskBlockPos
@@ -437,6 +440,7 @@ public:
     ScriptError GetScriptError() const { return error; }
 };
 
+bool GetAddressIndex(uint160 addressHash, int type, std::vector<std::pair<CAddressIndexKey, CAmount> > &addressIndex);
 
 /** Functions for disk access for blocks */
 bool WriteBlockToDisk(const CBlock& block, CDiskBlockPos& pos, const CMessageHeader::MessageStartChars& messageStart);
