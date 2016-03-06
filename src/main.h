@@ -297,6 +297,16 @@ struct CNodeStateStats {
     std::vector<int> vHeightInFlight;
 };
 
+struct CAddressIndex {
+    std::vector<unsigned char> hashBytes;
+    unsigned int type;
+    CAmount nValue;
+    size_t index;
+
+    CAddressIndex(std::vector<unsigned char> hashBytes, unsigned int type, CAmount nValue, size_t index) {
+    }
+};
+
 struct CDiskTxPos : public CDiskBlockPos
 {
     unsigned int nTxOffset; // after header

@@ -2193,6 +2193,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     std::vector<std::pair<uint256, CDiskTxPos> > vPos;
     vPos.reserve(block.vtx.size());
     blockundo.vtxundo.reserve(block.vtx.size() - 1);
+    std::vector<CAddressIndex > addressIndex;
 
     for (unsigned int i = 0; i < block.vtx.size(); i++)
     {
@@ -2219,11 +2220,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
 		if (fAddressIndex) {
 		    const CTxOut &prevout = view.GetOutputFor(tx.vin[j]);
-		    const CTxDestination addressRet;
-		    if (prevout.scriptPubKey.IsPayToPublicKeyHash()) {
-
-		    } else if (prevout.scriptPubKey.IsPayToScriptHash()) {
-
+		    if (prevout.scriptPubKey.IsPayToScriptHash()) {
+			vector<unsigned char> hashBytes(prevout.scriptPubKey.begin()+2, prevout.scriptPubKey.begin()+22);
+			addressIndex.push_back(CAddressIndex(hashBytes, 2, prevout.nValue, j));
+		    } else if (prevout.scriptPubKey.IsPayToPublicKeyHash()) {
+			vector<unsigned char> hashBytes(prevout.scriptPubKey.begin()+3, prevout.scriptPubKey.begin()+23);
+			addressIndex.push_back(CAddressIndex(hashBytes, 1, prevout.nValue, j));
 		    } else {
 			continue;
 		    }
@@ -2257,14 +2259,16 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         }
 
 	if (fAddressIndex) {
-	    for (unsigned int k = 0; k < tx.vout.size(); k++)
+	    for (size_t k = 0; k < tx.vout.size(); k++)
 	    {
 		const CTxOut &out = tx.vout[k];
 
-		if (out.scriptPubKey.IsPayToPublicKeyHash()) {
-
-		} else if (out.scriptPubKey.IsPayToScriptHash()) {
-
+		if (out.scriptPubKey.IsPayToScriptHash()) {
+		    vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
+		    addressIndex.push_back(CAddressIndex(hashBytes, 2, out.nValue, k));
+		} else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
+		    vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
+		    addressIndex.push_back(CAddressIndex(hashBytes, 1, out.nValue, k));
 		} else {
 		    continue;
 		}
@@ -2320,6 +2324,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     if (fTxIndex)
         if (!pblocktree->WriteTxIndex(vPos))
             return AbortNode(state, "Failed to write transaction index");
+
+    if (fAddressIndex)
+	if (!pblocktree->WriteAddressIndex(addressIndex))
+	    return AbortNode(state, "Failed to write address index");
 
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
