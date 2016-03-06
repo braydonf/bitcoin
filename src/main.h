@@ -298,7 +298,7 @@ struct CNodeStateStats {
 };
 
 struct CAddressIndexKey {
-    std::vector<unsigned char> hashBytes;
+    uint160 hashBytes;
     unsigned int type;
     uint256 txhash;
     size_t index;
@@ -307,16 +307,30 @@ struct CAddressIndexKey {
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-	READWRITE(hashBytes);
-	READWRITE(txhash);
-	READWRITE(index);
+        READWRITE(hashBytes);
+        READWRITE(type);
+        READWRITE(txhash);
+        READWRITE(index);
     }
 
-    CAddressIndexKey(std::vector<unsigned char> hashBytes, unsigned int type, uint256 txhash, size_t index) {
+    CAddressIndexKey(uint160 addressHash, unsigned int addressType, uint256 txid, size_t txindex) {
+        hashBytes = addressHash;
+        type = addressType;
+        txhash = txid;
+        index = txindex;
     }
 
     CAddressIndexKey() {
+        SetNull();
     }
+
+    void SetNull() {
+        hashBytes.SetNull();
+        type = 0;
+        txhash.SetNull();
+        index = 0;
+    }
+
 };
 
 struct CDiskTxPos : public CDiskBlockPos
