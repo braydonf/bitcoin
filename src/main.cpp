@@ -2193,11 +2193,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     std::vector<std::pair<uint256, CDiskTxPos> > vPos;
     vPos.reserve(block.vtx.size());
     blockundo.vtxundo.reserve(block.vtx.size() - 1);
-    std::vector<CAddressIndex > addressIndex;
+    std::vector<std::pair<CAddressIndexKey, CAmount> > addressIndex;
 
     for (unsigned int i = 0; i < block.vtx.size(); i++)
     {
         const CTransaction &tx = block.vtx[i];
+        const uint256 txhash = tx.GetHash();
 
         nInputs += tx.vin.size();
         nSigOps += GetLegacySigOpCount(tx);
@@ -2222,10 +2223,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 		    const CTxOut &prevout = view.GetOutputFor(tx.vin[j]);
 		    if (prevout.scriptPubKey.IsPayToScriptHash()) {
 			vector<unsigned char> hashBytes(prevout.scriptPubKey.begin()+2, prevout.scriptPubKey.begin()+22);
-			addressIndex.push_back(CAddressIndex(hashBytes, 2, prevout.nValue, j));
+			addressIndex.push_back(make_pair(CAddressIndexKey(hashBytes, 2, txhash, j), prevout.nValue * -1));
 		    } else if (prevout.scriptPubKey.IsPayToPublicKeyHash()) {
 			vector<unsigned char> hashBytes(prevout.scriptPubKey.begin()+3, prevout.scriptPubKey.begin()+23);
-			addressIndex.push_back(CAddressIndex(hashBytes, 1, prevout.nValue, j));
+			addressIndex.push_back(make_pair(CAddressIndexKey(hashBytes, 1, txhash, j), prevout.nValue * -1));
 		    } else {
 			continue;
 		    }
@@ -2265,10 +2266,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
 		if (out.scriptPubKey.IsPayToScriptHash()) {
 		    vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
-		    addressIndex.push_back(CAddressIndex(hashBytes, 2, out.nValue, k));
+		    addressIndex.push_back(make_pair(CAddressIndexKey(hashBytes, 2, txhash, k), out.nValue));
 		} else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
 		    vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
-		    addressIndex.push_back(CAddressIndex(hashBytes, 1, out.nValue, k));
+		    addressIndex.push_back(make_pair(CAddressIndexKey(hashBytes, 1, txhash, k), out.nValue));
 		} else {
 		    continue;
 		}

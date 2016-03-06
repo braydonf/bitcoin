@@ -297,13 +297,22 @@ struct CNodeStateStats {
     std::vector<int> vHeightInFlight;
 };
 
-struct CAddressIndex {
+struct CAddressIndexKey {
     std::vector<unsigned char> hashBytes;
     unsigned int type;
-    CAmount nValue;
+    uint256 txhash;
     size_t index;
 
-    CAddressIndex(std::vector<unsigned char> hashBytes, unsigned int type, CAmount nValue, size_t index) {
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+	READWRITE(hashBytes);
+	READWRITE(txhash);
+	READWRITE(index);
+    }
+
+    CAddressIndexKey(std::vector<unsigned char> hashBytes, unsigned int type, uint256 txhash, size_t index) {
     }
 };
 
