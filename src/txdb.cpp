@@ -235,6 +235,38 @@ bool CBlockTreeDB::EraseAddressIndex(const std::vector<std::pair<CAddressIndexKe
     return WriteBatch(batch);
 }
 
+bool CBlockTreeDB::ReadAddresses(std::set<std::pair<uint160, int> > &addresses, int max)
+{
+
+    boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
+
+    pcursor->Seek(DB_ADDRESSINDEX);
+    int count = 0;
+
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+        std::pair<char,CAddressIndexKey> key;
+        if (pcursor->GetKey(key) && key.first == DB_ADDRESSINDEX) {
+            if (count >= max) {
+                break;
+            }
+            CAmount nValue;
+            if (pcursor->GetValue(nValue)) {
+                if (addresses.insert(std::make_pair(key.second.hashBytes, key.second.type)).second) {
+                    count++;
+                }
+                pcursor->Next();
+            } else {
+                return error("failed to get address index value");
+            }
+        } else {
+            break;
+        }
+    }
+
+    return true;
+}
+
 bool CBlockTreeDB::ReadAddressIndex(uint160 addressHash, int type,
                                     std::vector<std::pair<CAddressIndexKey, CAmount> > &addressIndex,
                                     int start, int end) {

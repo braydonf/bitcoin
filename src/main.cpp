@@ -1476,6 +1476,18 @@ bool GetSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value)
     return true;
 }
 
+bool GetAddresses(std::set<std::pair<uint160, int> > &addresses, int max)
+{
+    if (!fAddressIndex)
+        return error("address index not enabled");
+
+    if (!pblocktree->ReadAddresses(addresses, max)) {
+        return error("unable to get addresses");
+    }
+
+    return true;
+}
+
 bool GetAddressIndex(uint160 addressHash, int type,
                      std::vector<std::pair<CAddressIndexKey, CAmount> > &addressIndex, int start, int end)
 {

@@ -699,6 +699,7 @@ public:
 
 bool GetTimestampIndex(const unsigned int &high, const unsigned int &low, std::vector<uint256> &hashes);
 bool GetSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value);
+bool GetAddresses(std::set<std::pair<uint160, int> > &addresses, int max);
 bool GetAddressIndex(uint160 addressHash, int type,
                      std::vector<std::pair<CAddressIndexKey, CAmount> > &addressIndex,
                      int start = 0, int end = 0);

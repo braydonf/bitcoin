@@ -594,6 +594,31 @@ UniValue getaddressutxos(const UniValue& params, bool fHelp)
     return result;
 }
 
+UniValue getaddresses(const UniValue& params, bool fHelp)
+{
+
+    if (fHelp || params.size() != 1 || !params[0].isNum())
+        throw runtime_error("");
+
+    std::set<std::pair<uint160, int> > addresses;
+    int max = params[0].get_int();
+
+    if (!GetAddresses(addresses, max)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for addresses");
+    }
+
+    UniValue result(UniValue::VARR);
+
+    for (std::set<std::pair<uint160, int> >::const_iterator it=addresses.begin(); it!=addresses.end(); it++) {
+        std::string address;
+        if (!getAddressFromIndex(it->second, it->first, address)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unknown address type");
+        }
+        result.push_back(address);
+    }
+    return result;
+}
+
 UniValue getaddressdeltas(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 1 || !params[0].isObject())

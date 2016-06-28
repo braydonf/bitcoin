@@ -105,6 +105,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "getblockhashes", 0 },
     { "getblockhashes", 1 },
     { "getspentinfo", 0},
+    { "getaddresses", 0},
     { "getaddresstxids", 0},
     { "getaddressbalance", 0},
     { "getaddressdeltas", 0},
