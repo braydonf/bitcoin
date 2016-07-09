@@ -22,6 +22,7 @@
 #include "script/standard.h"
 #include "txmempool.h"
 #include "uint256.h"
+#include "util.h"
 #include "utilstrencodings.h"
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
@@ -61,11 +62,17 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, UniValue& out, bool fInclud
 
 void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
 {
+
+    int64_t nTimeStart = GetTimeMicros();
+
     uint256 txid = tx.GetHash();
     entry.push_back(Pair("txid", txid.GetHex()));
     entry.push_back(Pair("size", (int)::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION)));
     entry.push_back(Pair("version", tx.nVersion));
     entry.push_back(Pair("locktime", (int64_t)tx.nLockTime));
+
+    int64_t nInputStart = GetTimeMicros();
+
     UniValue vin(UniValue::VARR);
     BOOST_FOREACH(const CTxIn& txin, tx.vin) {
         UniValue in(UniValue::VOBJ);
@@ -97,6 +104,9 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
         vin.push_back(in);
     }
     entry.push_back(Pair("vin", vin));
+
+    int64_t nInputEnd = GetTimeMicros();
+
     UniValue vout(UniValue::VARR);
     for (unsigned int i = 0; i < tx.vout.size(); i++) {
         const CTxOut& txout = tx.vout[i];
@@ -121,6 +131,8 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
     }
     entry.push_back(Pair("vout", vout));
 
+    int64_t nOutputEnd = GetTimeMicros();
+
     if (!hashBlock.IsNull()) {
         entry.push_back(Pair("blockhash", hashBlock.GetHex()));
         BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
@@ -137,6 +149,14 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
             }
         }
     }
+
+    int64_t nTimeEnd = GetTimeMicros();
+
+    LogPrint("rpc", "getrawtransaction-tojson: start[%.2fms] inputs[%.2fms] outputs[%.2fms] end[%.2fms]\n",
+             nInputStart - nTimeStart,
+             nInputEnd - nInputStart,
+             nOutputEnd - nInputEnd,
+             nTimeEnd - nOutputEnd);
 }
 
 UniValue getrawtransaction(const UniValue& params, bool fHelp)
@@ -204,9 +224,13 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
             + HelpExampleCli("getrawtransaction", "\"mytxid\"")
             + HelpExampleCli("getrawtransaction", "\"mytxid\" 1")
             + HelpExampleRpc("getrawtransaction", "\"mytxid\", 1")
-        );
+            );
+
+    int64_t nTimeStart = GetTimeMicros();
 
     LOCK(cs_main);
+
+    int64_t nTimeLock = GetTimeMicros();
 
     uint256 hash = ParseHashV(params[0], "parameter 1");
 
@@ -219,7 +243,11 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
     if (!GetTransaction(hash, tx, Params().GetConsensus(), hashBlock, true))
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about transaction");
 
+    int64_t nTimeRead = GetTimeMicros();
+
     string strHex = EncodeHexTx(tx);
+
+    int64_t nTimeHex = GetTimeMicros();
 
     if (!fVerbose)
         return strHex;
@@ -227,6 +255,15 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
     UniValue result(UniValue::VOBJ);
     result.push_back(Pair("hex", strHex));
     TxToJSON(tx, hashBlock, result);
+
+    int64_t nTimeJSON = GetTimeMicros();
+
+    LogPrint("rpc", "getrawtransaction: lock[%.2fms] read[%.2fms] hex[%.2fms] json[%.2fms]\n",
+             nTimeLock - nTimeStart,
+             nTimeRead - nTimeLock,
+             nTimeHex - nTimeRead,
+             nTimeJSON - nTimeHex);
+
     return result;
 }
 
