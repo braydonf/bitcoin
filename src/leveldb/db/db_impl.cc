@@ -216,11 +216,21 @@ void DBImpl::MaybeIgnoreError(Status* s) const {
 }
 
 void DBImpl::DeleteObsoleteFiles() {
+  // Reduction of lock's range code added from:
+  // https://github.com/google/leveldb/pull/386
+  mutex_.AssertHeld();
+
   if (!bg_error_.ok()) {
     // After a background error, we don't know whether a new version may
     // or may not have been committed, so we cannot safely garbage collect.
     return;
   }
+
+  // Get values while in lock
+  // https://github.com/google/leveldb/pull/386
+  const uint64_t log_number = versions_->LogNumber();
+  const uint64_t prev_log_number = versions_->PrevLogNumber();
+  const uint64_t manifest_file_number = versions_->ManifestFileNumber();
 
   // Make a set of all of the live files
   std::set<uint64_t> live = pending_outputs_;
@@ -228,6 +238,12 @@ void DBImpl::DeleteObsoleteFiles() {
 
   std::vector<std::string> filenames;
   env_->GetChildren(dbname_, &filenames); // Ignoring errors on purpose
+
+
+  // Unlock while deleting obsolete files
+  // https://github.com/google/leveldb/pull/386
+  mutex_.Unlock();
+
   uint64_t number;
   FileType type;
   for (size_t i = 0; i < filenames.size(); i++) {
@@ -235,13 +251,13 @@ void DBImpl::DeleteObsoleteFiles() {
       bool keep = true;
       switch (type) {
         case kLogFile:
-          keep = ((number >= versions_->LogNumber()) ||
-                  (number == versions_->PrevLogNumber()));
+          keep = ((number >= log_number) ||
+                  (number == prev_log_number));
           break;
         case kDescriptorFile:
           // Keep my manifest file, and any newer incarnations'
           // (in case there is a race that allows other incarnations)
-          keep = (number >= versions_->ManifestFileNumber());
+          keep = (number >= manifest_file_number);
           break;
         case kTableFile:
           keep = (live.find(number) != live.end());
@@ -269,6 +285,9 @@ void DBImpl::DeleteObsoleteFiles() {
       }
     }
   }
+
+  // https://github.com/google/leveldb/pull/386
+  mutex_.Lock();
 }
 
 Status DBImpl::Recover(VersionEdit* edit) {
@@ -801,6 +820,25 @@ Status DBImpl::FinishCompactionOutputFile(CompactionState* compact,
   compact->total_bytes += current_bytes;
   delete compact->builder;
   compact->builder = NULL;
+
+  // Writing current_bytes to disk is considered no expense(cost no time),
+  // so we calculate how many IOs will match the compaction speed,
+  // then sleep 1s/IOs
+  // From: https://github.com/google/leveldb/issues/185 (me@ideawu.com)
+  int compaction_speed = 2;
+  int mbs = current_bytes/1024/1024;
+  if (compaction_speed > mbs > 1){
+    int count = compaction_speed/mbs;
+    if (count < 1){
+        count = 1;
+    }
+    int pause = 1000 * 1000 / count;
+    Log(options_.info_log, "compaction_speed: %d MB, pause: %d us",
+        compaction_speed, pause);
+    env_->SleepForMicroseconds(pause);
+  } else {
+    Log(options_.info_log, "compaction_speed: %d MB, nopause", compaction_speed);
+  }
 
   // Finish and check for file errors
   if (s.ok()) {
